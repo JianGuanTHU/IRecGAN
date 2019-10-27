@@ -1,1 +1,1 @@
-# InteractiveRecGAN
+# RecGAN
