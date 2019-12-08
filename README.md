@@ -30,7 +30,7 @@ We conduct empirical evaluations on both real-world and synthetic datasets to de
 
 - Real-world offline evaluation
 
-  We use a large-scale recommendation dataset from [CIKM Cup 2016](http://cikm2016.cs.iupui.edu/cikm-cup/) to evaluate the effectiveness of our proposed solution for ofﬂine reranking. We ﬁltered out sessions of length 1 or longer than 40 and items that have never been clicked. We selected the top 40,000 most popular items to construct our recommendation candidate set. We randomly selected 65,284/1,718/1,820 sessions for training/validation/testing purposes, where the average length of sessions is 2.81/2.80/2.77 respectively. The percentage of recorded recommendations that lead to a purchase is 2.31%/2.46%/2.45%.  The processed dataset can be downloaded [here](). You can begin training the IRecGAN network just by  executing the following command: 
+  We use a large-scale recommendation dataset from [CIKM Cup 2016](http://cikm2016.cs.iupui.edu/cikm-cup/) to evaluate the effectiveness of our proposed solution for ofﬂine reranking. We ﬁltered out sessions of length 1 or longer than 40 and items that have never been clicked. We selected the top 40,000 most popular items to construct our recommendation candidate set. We randomly selected 65,284/1,718/1,820 sessions for training/validation/testing purposes, where the average length of sessions is 2.81/2.80/2.77 respectively. The percentage of recorded recommendations that lead to a purchase is 2.31%/2.46%/2.45%.  The processed dataset can be downloaded [here](https://cloud.tsinghua.edu.cn/f/e4bb57a633074009a1eb/). You can begin training the IRecGAN network just by  executing the following command: 
 	```
 	python main.py
 	```
