@@ -44,4 +44,4 @@ Contact info: j-guan19@mails.tsinghua.edu.cn (Welcome any suggestions or questio
 
 ## Model Architecture
 
-![image-20191206221217394](/Users/jian/Jian/实验室/2019NIPS-Recommendation/IRecGAN/model.png)
+![](./model.png)
