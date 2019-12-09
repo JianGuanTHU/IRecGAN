@@ -38,7 +38,7 @@ We conduct empirical evaluations on both real-world and synthetic datasets to de
 
 ## Paper
 
-Xueying Bai\*, Jian Guan\*, Hongning Wang. Model-Based Reinforcement Learning with Adversarial Training for Online Recommendation. Published in the 33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada. Here is the [Preprint paper](https://arxiv.org/pdf/1911.03845.pdf).
+Xueying Bai\*, Jian Guan\*, Hongning Wang. Model-Based Reinforcement Learning with Adversarial Training for Online Recommendation. Published in the 33rd Conference on Neural Information Processing Systems (NeurIPS 2019), Vancouver, Canada. Here is the [Preprint paper](https://arxiv.org/pdf/1911.03845.pdf), [poster](https://drive.google.com/drive/folders/13Vfxo8vkdD8jOgG2N6sHc2X4_9s-LIbU). 
 
 Contact info: j-guan19@mails.tsinghua.edu.cn (Welcome any suggestions or questions.)
 
