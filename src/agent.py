@@ -22,7 +22,7 @@ class AgentModel(object):
             learning_rate_decay_factor=0.95,
             max_gradient_norm=5.0,
             use_lstm=True):
-        
+
         self.epoch = tf.Variable(0, trainable=False, name='agn/epoch')
         self.epoch_add_op = self.epoch.assign(self.epoch + 1)
 
@@ -34,7 +34,7 @@ class AgentModel(object):
         self.reward = tf.placeholder(tf.float32, shape=(None))
 
         if embed is None:
-            self.embed = tf.get_variable('agn/embed', [num_items, num_embed_units], tf.float32, initializer=tf.initializers.truncated_normal(0,1))
+            self.embed = tf.get_variable('agn/embed', [num_items, num_embed_units], tf.float32, initializer=tf.truncated_normal_initializer(0,1))
         else:
             self.embed = tf.get_variable('agn/embed', dtype=tf.float32, initializer=embed)
 
@@ -95,12 +95,12 @@ class AgentModel(object):
                     self.sessions_length, initial_state=self.ini_state, dtype=tf.float32, scope="encoder")
 
             # [batch_size, num_units]
-            self.final_output_predict = tf.reshape(self.encoder_output_predict, [-1, num_units])
+            self.final_output_predict = tf.reshape(self.encoder_output_predict[:,-1,:], [-1, num_units])
             # [batch_size, num_items]
             self.rec_logits = output_fn(self.final_output_predict)
             # [batch_size, action_num]
             _, self.rec_index = tf.nn.top_k(self.rec_logits[:,len(_START_VOCAB):], action_num)
-            self.rec_index = self.rec_index + len(_START_VOCAB)
+            self.rec_index += len(_START_VOCAB)
 
             def gumbel_max(inp, alpha, beta):
                 # assert len(tf.shape(inp)) == 2
@@ -128,7 +128,7 @@ class AgentModel(object):
                 global_step=self.global_step)
 
         self.saver = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2, 
-                max_to_keep=10, pad_step_number=True, keep_checkpoint_every_n_hours=1.0)
+                max_to_keep=100, pad_step_number=True, keep_checkpoint_every_n_hours=1.0)
 
     def print_parameters(self):
         for item in self.params:
@@ -150,7 +150,7 @@ class AgentModel(object):
 
     def train(self, sess, dataset, generate_session=None, is_train=True, ftest_name=FLAGS.agn_output_file):
         st, ed, loss, acc, acc_1 = 0, 0, [], [], []
-        if generate_session != None:
+        if generate_session:
             dataset = dataset + generate_session
         print("Get %s data:len(dataset) is %d " % ("training" if is_train else "testing", len(dataset)))
         if not is_train:

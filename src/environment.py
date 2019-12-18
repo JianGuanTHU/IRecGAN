@@ -33,7 +33,7 @@ class EnvModel(object):
         self.purchase = tf.placeholder(tf.int32, shape=(None, None))
 
         if embed is None:
-            self.embed = tf.get_variable('env/embed', [num_items, num_embed_units], tf.float32, initializer=tf.initializers.truncated_normal(0,1))
+            self.embed = tf.get_variable('env/embed', [num_items, num_embed_units], tf.float32, initializer=tf.truncated_normal_initializer(0,1))
         else:
             self.embed = tf.get_variable('env/embed', dtype=tf.float32, initializer=embed)
 
@@ -75,21 +75,24 @@ class EnvModel(object):
 
             # [batch_size, length, embed_units]
             aim_embed = tf.reduce_sum(tf.expand_dims(self.aims, 3) * self.candidate, 2)
-            # [batch_size, length, 2]
-            self.purchase_prob = tf.nn.softmax(tf.layers.dense(tf.multiply(
-                tf.layers.dense(tf.stop_gradient(encoder_output), num_units, name="purchase_layer"), 
-                tf.layers.dense(tf.stop_gradient(aim_embed), num_units, name="purchase_aim")), 2, name="purchase_projection"))
-            local_purchase_loss = tf.reduce_sum(-tf.one_hot(self.purchase, 2) * tf.log(self.purchase_prob + 1e-20), 2) * encoder_mask * tf.pow(tf.cast(self.purchase, tf.float32)+1, 5.3)
-            self.purchase_loss = tf.reduce_sum(local_purchase_loss) / tf.reduce_sum(encoder_mask)
+            if FLAGS.use_simulated_data:
+                self.purchase_prob, local_purchase_loss, self.purchase_loss = tf.zeros([batch_size,encoder_length,2], dtype=tf.float32), tf.zeros([batch_size,encoder_length], dtype=tf.float32), tf.constant(0., dtype=tf.float32)
+            else:
+                # [batch_size, length, 2]
+                self.purchase_prob = tf.nn.softmax(tf.layers.dense(tf.multiply(
+                    tf.layers.dense(tf.stop_gradient(encoder_output), num_units, name="purchase_layer"), 
+                    tf.layers.dense(tf.stop_gradient(aim_embed), num_units, name="purchase_aim")), 2, name="purchase_projection"))
+                local_purchase_loss = tf.reduce_sum(-tf.one_hot(self.purchase, 2) * tf.log(self.purchase_prob + 1e-20), 2) * encoder_mask * tf.pow(tf.cast(self.purchase, tf.float32)+1, 5.3)
+                self.purchase_loss = tf.reduce_sum(local_purchase_loss) / tf.reduce_sum(encoder_mask)
             self.decoder_loss = self.predict_loss + self.purchase_loss
-            
+
             self.score = tf.placeholder(tf.float32, (None, None))
             self.score_loss = tf.reduce_sum(self.score * (local_predict_loss + local_purchase_loss)) / tf.reduce_sum(encoder_mask)
 
         # Inference
         with tf.variable_scope("env", reuse=True):
             # tf.get_variable_scope().reuse_variables()
-            # [batch_size, length, embed_units]
+            # [batch_size, 1, embed_units]
             inf_preference = tf.expand_dims(tf.layers.dense(encoder_output[:,-1,:], num_embed_units, name="pref_output"), 1)
             # [batch_size, 1, rec_length, embed_units]
             self.inf_candidate = tf.reshape(
@@ -103,6 +106,7 @@ class EnvModel(object):
             self.inf_norm_prob = inf_mul_prob / (tf.expand_dims(tf.reduce_sum(inf_mul_prob, 2), 2) + 1e-20)
             # [batch_size, 1, metric_num]
             _, self.inf_argmax_index = tf.nn.top_k(self.inf_norm_prob, k=FLAGS.metric)
+            _, self.inf_all_argmax_index = tf.nn.top_k(self.inf_norm_prob, k=tf.shape(self.inf_norm_prob)[-1])
 
             def gumbel_max(inp, alpha, beta):
                 # assert len(tf.shape(inp)) == 2
@@ -111,14 +115,18 @@ class EnvModel(object):
                 inp_g = tf.nn.softmax((tf.nn.log_softmax(inp/1.0) + g * alpha) * beta)
                 return inp_g
             # [batch_size, action_num]
-            _, self.inf_random_index = tf.nn.top_k(gumbel_max(tf.log(self.inf_norm_prob+1e-12), 1, 1), k=FLAGS.action_num)
+            _, self.inf_random_index = tf.nn.top_k(gumbel_max(tf.log(self.inf_norm_prob+1e-20), 1, 1), k=FLAGS.metric)
+            _, self.inf_all_random_index = tf.nn.top_k(gumbel_max(tf.log(self.inf_norm_prob+1e-20), 1, 1), k=tf.shape(self.inf_norm_prob)[-1])
 
             inf_aim_embed = tf.reduce_sum(tf.cast(tf.reshape(tf.one_hot(self.inf_argmax_index[:,:,0], rec_length), [batch_size,1,rec_length,1]), tf.float32) * self.inf_candidate, 2)
 
-            # [batch_size, 1, 2]
-            self.inf_purchase_prob = tf.nn.softmax(tf.layers.dense(tf.multiply(
-                tf.layers.dense(tf.stop_gradient(encoder_output), num_units, name="purchase_layer"), 
-                tf.layers.dense(tf.stop_gradient(inf_aim_embed), num_units, name="purchase_aim")), 2, name="purchase_projection"))
+            if FLAGS.use_simulated_data:
+                self.inf_purchase_prob = tf.zeros([batch_size,1,2], dtype=tf.float32)
+            else:
+                # [batch_size, 1, 2]
+                self.inf_purchase_prob = tf.nn.softmax(tf.layers.dense(tf.multiply(
+                    tf.layers.dense(tf.stop_gradient(encoder_output), num_units, name="purchase_layer"), 
+                    tf.layers.dense(tf.stop_gradient(inf_aim_embed), num_units, name="purchase_aim")), 2, name="purchase_projection"))
 
         self.learning_rate = tf.Variable(float(learning_rate), trainable=False, 
                 dtype=tf.float32)
@@ -144,7 +152,7 @@ class EnvModel(object):
                 global_step=self.global_step)
 
         self.saver = tf.train.Saver(tf.global_variables(), write_version=tf.train.SaverDef.V2, 
-                max_to_keep=10, pad_step_number=True, keep_checkpoint_every_n_hours=1.0)
+                max_to_keep=100, pad_step_number=True, keep_checkpoint_every_n_hours=1.0)
 
     def print_parameters(self):
         for item in self.params:
@@ -202,29 +210,29 @@ class EnvModel(object):
             acc.append(tmp_acc)
             acc_1.append(tmp_acc_1)
 
-            all_num, p_num, true_pos, true_neg, false_pos, false_neg = 1e-6, 0., 0., 0., 0., 0.
-            for b_pu, b_pu_l in zip(batch_data["purchase"], purchase_prob):
-                for pu, pu_l in zip(b_pu, b_pu_l): 
-                    if pu != -1.:
-                        #print pu, pu_l
-                        all_num += 1
-                        if pu == 1. and pu_l > 0.5:
-                            p_num += 1
-                            true_pos += 1
-                        if pu == 1. and pu_l <= 0.5:
-                            false_neg += 1
-                        if pu == 0. and pu_l > 0.5:
-                            false_pos += 1 
-                        if pu == 0. and pu_l <= 0.5:
-                            p_num += 1
-                            true_neg += 1
-            tp.append(true_pos / all_num)
-            tn.append(true_neg / all_num)
-            fp.append(false_pos / all_num)
-            fn.append(false_neg / all_num)
-        print("Confusion matrix for purchase prediction:")
-        print("true positive:%.4f"%np.mean(tp), "true negative:%.4f"%np.mean(tn))
-        print("false positive:%.4f"%np.mean(fp), "false negative:%.4f"%np.mean(fn))
+            if not FLAGS.use_simulated_data:
+                all_num, true_pos, true_neg, false_pos, false_neg = 1e-6, 0., 0., 0., 0.
+                for b_pu, b_pu_l in zip(batch_data["purchase"], purchase_prob):
+                    for pu, pu_l in zip(b_pu, b_pu_l): 
+                        if pu != -1.:
+                            #print pu, pu_l
+                            all_num += 1
+                            if pu == 1. and pu_l > 0.5:
+                                true_pos += 1
+                            if pu == 1. and pu_l <= 0.5:
+                                false_neg += 1
+                            if pu == 0. and pu_l > 0.5:
+                                false_pos += 1 
+                            if pu == 0. and pu_l <= 0.5:
+                                true_neg += 1
+                tp.append(true_pos / all_num)
+                tn.append(true_neg / all_num)
+                fp.append(false_pos / all_num)
+                fn.append(false_neg / all_num)
+        if not FLAGS.use_simulated_data:
+            print("Confusion matrix for purchase prediction:")
+            print("true positive:%.4f"%np.mean(tp), "true negative:%.4f"%np.mean(tn))
+            print("false positive:%.4f"%np.mean(fp), "false negative:%.4f"%np.mean(fn))
         print("predict:p@1:%.4f%%"%(np.mean(acc_1) * 100), "p@%d:%.4f%%"%(FLAGS.metric, np.mean(acc)*100))
 
         if is_train:

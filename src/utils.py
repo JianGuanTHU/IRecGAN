@@ -12,10 +12,11 @@ tf.app.flags.DEFINE_integer("batch_size", 32, "Batch size to use during training
 
 tf.app.flags.DEFINE_string("data_dir", "./data", "Data directory")
 tf.app.flags.DEFINE_string("data_name", "train.csv", "Data name")
+tf.app.flags.DEFINE_boolean("use_simulated_data", False, "Set to True to use simulated data")
 tf.app.flags.DEFINE_string("interact_data_dir", "./interact_data", "Directory to store interaction data.")
-tf.app.flags.DEFINE_string("agn_train_dir", "./agn_train", "Training directory for agent model.")
-tf.app.flags.DEFINE_string("env_train_dir", "./env_train", "Training directory for environment model.")
-tf.app.flags.DEFINE_string("dis_train_dir", "./dis_train", "Training directory for discriminator model.")
+tf.app.flags.DEFINE_string("agn_train_dir", "./train/agn_train", "Training directory for agent model.")
+tf.app.flags.DEFINE_string("env_train_dir", "./train/env_train", "Training directory for environment model.")
+tf.app.flags.DEFINE_string("dis_train_dir", "./train/dis_train", "Training directory for discriminator model.")
 tf.app.flags.DEFINE_boolean("interact", True, "Set to True to use online model-based training")
 tf.app.flags.DEFINE_boolean("use_dis", True, "Set to True to use adversarial training")
 tf.app.flags.DEFINE_integer("metric", 10, "For the calculation of p@metric")
@@ -61,21 +62,21 @@ def load_data(path, fname):
         print("Number of sessions after filtering:", len(output_session))
     return output_session
 
-def build_vocab(data, only_click=True):
+def build_vocab(data):
     print("Creating vocabulary...")
-    vocab = {}
-    for each_session in data:
-        for item in each_session:
-            if only_click:
+    if FLAGS.use_simulated_data:
+        article_list = _START_VOCAB + map(str, range(50))
+    else:
+        vocab = {}
+        for each_session in data:
+            for item in each_session:
                 v = [item["click"]]
-            else:
-                v = [item["click"]] + item["rec_list"]
-            for token in v:
-                if token in vocab:
-                    vocab[token] += 1
-                else:
-                    vocab[token] = 1
-    article_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
+                for token in v:
+                    if token in vocab:
+                        vocab[token] += 1
+                    else:
+                        vocab[token] = 1
+        article_list = _START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
 
     with open("article_list.txt", "w") as fout:
         for a in article_list:

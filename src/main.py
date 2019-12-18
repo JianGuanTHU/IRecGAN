@@ -76,7 +76,7 @@ def generate_next_click(current_click, flog, use_dis=FLAGS.use_dis):
     global gen_session, gen_rec_list, gen_aims_idx, gen_state, gen_purchase, session_no, next_session
 
     if len(gen_session) >= max_interact_len or current_click == 3:
-        gen_session = [np.random.choice(sort_start_click)]
+        gen_session = [np.random.choice(sort_start_click, p=sort_start_click_prob)]
         gen_rec_list, gen_aims_idx, gen_purchase = [], [], []
         gen_state = ini_state
         session_no += 1
@@ -131,7 +131,7 @@ def generate_next_click(current_click, flog, use_dis=FLAGS.use_dis):
 def generate_data(size, flog, use_dis=FLAGS.use_dis):
     global generate_session, current_click, session_no, next_session
     tmp_session_no = session_no
-    current_click = np.random.choice(sort_start_click)
+    current_click = np.random.choice(sort_start_click, p=sort_start_click_prob)
     while session_no < tmp_session_no + size:
         current_click, next_click, current_action, purchase_prob, dis_reward = generate_next_click(current_click, flog, use_dis=use_dis)
         if not next_session and len(generate_session) > 0:
@@ -167,18 +167,6 @@ dis_sess = tf.Session(config=config, graph=dis_graph)
 data = load_data(FLAGS.data_dir, FLAGS.data_name)
 data = np.random.permutation(data)
 
-start_click = {}
-for d in data:
-    k = d[0]["click"]
-    if k in start_click:
-        start_click[k] += 1
-    else:
-        start_click[k] = 1
-if len(start_click) < 2:
-    sort_start_click = list(start_click.keys())
-else:
-    sort_start_click = sorted(start_click, key=start_click.get, reverse=True)[1:10000]
-
 max_interact_len = 2 * int(np.mean([len(s) for s in data]))
 print("Average length of the dataset:", np.mean([len(s) for s in data]), "max_interact_len:", max_interact_len)
 fold = len(data) / 40
@@ -192,6 +180,23 @@ index2aid = {}
 for i,a in enumerate(vocab):
     aid2index[a] = i
     index2aid[i] = a
+
+if FLAGS.use_simulated_data:
+    sort_start_click = [data[0][0]["click"]]
+    sort_start_click_prob = [1.]
+else:
+    start_click = {}
+    for d in data:
+        if d[0]["click"] in aid2index:
+            k = aid2index[d[0]["click"]]
+        else:
+            continue
+        if k in start_click:
+            start_click[k] += 1
+        else:
+            start_click[k] = 1
+    sort_start_click = sorted(start_click, key=start_click.get, reverse=True)
+    sort_start_click_prob = np.array([start_click[item] for item in sort_start_click]) / float(np.sum([start_click[item] for item in sort_start_click]))
 
 def filter(d):
     new_d = []
@@ -342,7 +347,7 @@ while True:
     for _ in range(3):
         for _ in range(3):
             if FLAGS.interact:
-                interact(1000)
+                interact(200)
             agn_train(1)
 
         if FLAGS.use_dis:

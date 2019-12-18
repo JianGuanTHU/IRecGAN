@@ -70,9 +70,12 @@ class DisModel(object):
 
         self.max_embed = tf.reduce_sum(tf.expand_dims(tf.nn.softmax(self.pre_mul_can / 0.1), 3) * self.candidate, 2)
         self.aim_embed = tf.reduce_sum(tf.expand_dims(tf.one_hot(self.aims_idx, rec_length), 3) * self.candidate, 2)
-        W_p = tf.get_variable("Wp", shape=(), dtype=tf.float32)
-        b_p = tf.get_variable("bp", shape=(), dtype=tf.float32)
-        purchase_weight = tf.cast(self.purchase, tf.float32) * W_p + b_p
+        if FLAGS.use_simulated_data:
+            purchase_weight = tf.constant(1.0, dtype=tf.float32)
+        else:
+            W_p = tf.get_variable("Wp", shape=(), dtype=tf.float32)
+            b_p = tf.get_variable("bp", shape=(), dtype=tf.float32)
+            purchase_weight = tf.cast(self.purchase, tf.float32) * W_p + b_p
         self.logits = tf.reduce_sum(tf.reduce_sum(self.max_embed * self.aim_embed, 2) * purchase_weight * encoder_mask, 1) / tf.reduce_sum(encoder_mask, 1)
         self.prob = tf.nn.sigmoid(self.logits)
         self.decoder_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=tf.cast(self.label, tf.float32)))
